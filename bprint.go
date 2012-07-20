@@ -100,12 +100,6 @@ func readData(readFuncs []intReadFunc, data []interface{}) (n int, err error) {
 		data[i], err = rf(binReader)
 
 		if err != nil {
-			if err == io.ErrUnexpectedEOF {
-				fmt.Println("ERROR: not enough data for the next field")
-				os.Exit(1)
-			} else if err != io.EOF {
-				fmt.Println("While reading data:", err)
-			}
 			break
 		}
 		n++
@@ -153,12 +147,16 @@ func main() {
 	for n, err = readData(binSpec, data); err == nil; n, err = readData(binSpec, data) {
 		printData(data)
 	}
-	if err == io.EOF && n != 0 && n != binSpecLen {
-		// fill 0 for last record's field that's not filled
-		// fmt.Println("fill last and print")
-		for i := 0; i < binSpecLen-n; i++ {
-			data[n+i] = byte(0)
+	// Not enough data for the final line, print out what have been read
+	// if n != 0 && n != readFuncLen {
+	if n != 0 {
+		printData(data[0:n])
+	}
+	if err != io.EOF {
+		if err == io.ErrUnexpectedEOF {
+			fmt.Println("EOF: final data not enough for the last field")
+		} else {
+			fmt.Println("While reading data:", err)
 		}
-		printData(data)
 	}
 }
