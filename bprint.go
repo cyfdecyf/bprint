@@ -11,77 +11,94 @@ import (
 	"encoding/binary"
 )
 
+var byteOrder = binary.LittleEndian
+
 var (
 	binaryFmt string
 	outputFmt string
 	binReader io.Reader
 )
 
-var (
-	i8  int8
-	i16 int16
-	i32 int32
-	i64 int64
+type intReadFunc func(io.Reader) (interface{}, error)
 
-	u8  uint8
-	u16 uint16
-	u32 uint32
-	u64 uint64
-)
-
-var specifierSet = map[byte]bool{
-	'c': true,
-	'C': true,
-	's': true,
-	'S': true,
-	'l': true,
-	'L': true,
-	'q': true,
-	'Q': true,
+func readI8(reader io.Reader) (interface{}, error) {
+	var i int8
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
 }
 
-func parseBinaryFormatStr(binFmt string) (binSpec []byte) {
-	binSpec = make([]byte, 0)
+func readI16(reader io.Reader) (interface{}, error) {
+	var i int16
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readI32(reader io.Reader) (interface{}, error) {
+	var i int32
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readI64(reader io.Reader) (interface{}, error) {
+	var i int64
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readU8(reader io.Reader) (interface{}, error) {
+	var i uint8
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readU16(reader io.Reader) (interface{}, error) {
+	var i uint16
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readU32(reader io.Reader) (interface{}, error) {
+	var i uint32
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+func readU64(reader io.Reader) (interface{}, error) {
+	var i uint64
+	err := binary.Read(reader, byteOrder, &i)
+	return i, err
+}
+
+var readFuncMap = map[byte]intReadFunc{
+	'c': readI8,
+	's': readI16,
+	'l': readI32,
+	'q': readI64,
+
+	'C': readU8,
+	'S': readU16,
+	'L': readU32,
+	'Q': readU64,
+}
+
+func parseBinaryFormatStr(binFmt string) (binSpec []intReadFunc) {
+	binSpec = make([]intReadFunc, 0)
 	for i := 0; i < len(binFmt); i++ {
-		_, ok := specifierSet[binFmt[i]]
+		f, ok := readFuncMap[binFmt[i]]
 		if !ok {
 			fmt.Printf("Data specifier '%c' not supported\n", binFmt[i])
 			os.Exit(1)
 		}
-		binSpec = append(binSpec, binFmt[i])
+		binSpec = append(binSpec, f)
 	}
 	return
 }
 
-// Read binary data according to the format descriptor
-func readData(desc []byte, data []interface{}) (n int, err error) {
-	for i, v := range desc {
-		switch v {
-		case 'c':
-			err = binary.Read(binReader, binary.LittleEndian, &i8)
-			data[i] = i8
-		case 'C':
-			err = binary.Read(binReader, binary.LittleEndian, &u8)
-			data[i] = u8
-		case 's':
-			err = binary.Read(binReader, binary.LittleEndian, &i16)
-			data[i] = i16
-		case 'S':
-			err = binary.Read(binReader, binary.LittleEndian, &u16)
-			data[i] = u16
-		case 'l':
-			err = binary.Read(binReader, binary.LittleEndian, &i32)
-			data[i] = i32
-		case 'L':
-			err = binary.Read(binReader, binary.LittleEndian, &u32)
-			data[i] = u32
-		case 'q':
-			err = binary.Read(binReader, binary.LittleEndian, &i64)
-			data[i] = i64
-		case 'Q':
-			err = binary.Read(binReader, binary.LittleEndian, &u64)
-			data[i] = u64
-		}
+// Read binary data
+func readData(readFuncs []intReadFunc, data []interface{}) (n int, err error) {
+	for i, rf := range readFuncs {
+		data[i], err = rf(binReader)
+
 		if err != nil {
 			if err == io.ErrUnexpectedEOF {
 				fmt.Println("ERROR: not enough data for the next field")
@@ -89,7 +106,7 @@ func readData(desc []byte, data []interface{}) (n int, err error) {
 			} else if err != io.EOF {
 				fmt.Println("While reading data:", err)
 			}
-			return
+			break
 		}
 		n++
 	}
