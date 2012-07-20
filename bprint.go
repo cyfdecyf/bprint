@@ -13,12 +13,6 @@ import (
 
 var byteOrder = binary.LittleEndian
 
-var (
-	binaryFmt string
-	outputFmt string
-	binReader io.Reader
-)
-
 type intReadFunc func(io.Reader) (interface{}, error)
 
 func readI8(reader io.Reader) (interface{}, error) {
@@ -81,21 +75,21 @@ var readFuncMap = map[byte]intReadFunc{
 	'Q': readU64,
 }
 
-func parseBinaryFormatStr(binFmt string) (binSpec []intReadFunc) {
-	binSpec = make([]intReadFunc, 0)
+func parseBinaryFormatStr(binFmt string) (readFunc []intReadFunc) {
+	readFunc = make([]intReadFunc, 0)
 	for i := 0; i < len(binFmt); i++ {
 		f, ok := readFuncMap[binFmt[i]]
 		if !ok {
 			fmt.Printf("Data specifier '%c' not supported\n", binFmt[i])
 			os.Exit(1)
 		}
-		binSpec = append(binSpec, f)
+		readFunc = append(readFunc, f)
 	}
 	return
 }
 
 // Read binary data
-func readData(readFuncs []intReadFunc, data []interface{}) (n int, err error) {
+func readData(binReader io.Reader, readFuncs []intReadFunc, data []interface{}) (n int, err error) {
 	for i, rf := range readFuncs {
 		data[i], err = rf(binReader)
 
@@ -107,19 +101,22 @@ func readData(readFuncs []intReadFunc, data []interface{}) (n int, err error) {
 	return
 }
 
-func printData(data []interface{}) {
+func printData(outputFmt string, data []interface{}) {
 	fmt.Printf(outputFmt, data...)
 	fmt.Println()
 }
 
-func init() {
+func main() {
+	var (
+		binaryFmt string
+		outputFmt string
+		binReader io.Reader
+	)
+
 	flag.StringVar(&binaryFmt, "e", "",
 		"Binary format specifier. c,s,l,q for 8,16,32,64 bit signed int. Upper case for unsigned int.")
 	flag.StringVar(&outputFmt, "p", "",
 		"Printf style format, size is implicit from format specifier.")
-}
-
-func main() {
 	flag.Parse()
 
 	binFile := flag.Arg(0)
@@ -140,17 +137,17 @@ func main() {
 	}
 	binReader = bufio.NewReader(binReader)
 
-	binSpec := parseBinaryFormatStr(binaryFmt)
-	binSpecLen := len(binSpec)
-	data := make([]interface{}, binSpecLen, binSpecLen)
+	readFunc := parseBinaryFormatStr(binaryFmt)
+	readFuncLen := len(readFunc)
+	data := make([]interface{}, readFuncLen, readFuncLen)
 	var n int
-	for n, err = readData(binSpec, data); err == nil; n, err = readData(binSpec, data) {
-		printData(data)
+	for n, err = readData(binReader, readFunc, data); err == nil; n, err = readData(binReader, readFunc, data) {
+		printData(outputFmt, data)
 	}
 	// Not enough data for the final line, print out what have been read
 	// if n != 0 && n != readFuncLen {
 	if n != 0 {
-		printData(data[0:n])
+		printData(outputFmt, data[0:n])
 	}
 	if err != io.EOF {
 		if err == io.ErrUnexpectedEOF {
