@@ -121,6 +121,11 @@ func openFile(path string) (reader io.Reader) {
 	return
 }
 
+const (
+	defautlBinaryFmt = "CCCCCCCCCCCCCCCC"
+	defaultOutputFmt = "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x"
+)
+
 func main() {
 	var binaryFmt, outputFmt string
 	flag.StringVar(&binaryFmt, "e", "",
@@ -131,8 +136,8 @@ func main() {
 
 	binFilePath := flag.Arg(0)
 	if binaryFmt == "" {
-		binaryFmt = "CCCCCCCCCCCCCCCC"
-		outputFmt = "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x"
+		binaryFmt = defautlBinaryFmt
+		outputFmt = defaultOutputFmt
 	}
 
 	binReader := openFile(binFilePath)
