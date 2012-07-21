@@ -3,12 +3,12 @@ package main
 // TODO Also check output format string to make sure number of fields matches
 
 import (
-	"flag"
-	"fmt"
-	"os"
-	"io"
 	"bufio"
 	"encoding/binary"
+	"flag"
+	"fmt"
+	"io"
+	"os"
 )
 
 var byteOrder = binary.LittleEndian
@@ -106,41 +106,42 @@ func printData(outputFmt string, data []interface{}) {
 	fmt.Println()
 }
 
-func main() {
-	var (
-		binaryFmt string
-		outputFmt string
-		binReader io.Reader
-	)
+func openFile(path string) (reader io.Reader) {
+	if path == "" {
+		reader = os.Stdin
+	} else {
+		var err error
+		reader, err = os.Open(path)
+		if err != nil {
+			fmt.Println("While opening file:", err)
+			os.Exit(1)
+		}
+	}
+	reader = bufio.NewReader(reader)
+	return
+}
 
+func main() {
+	var binaryFmt, outputFmt string
 	flag.StringVar(&binaryFmt, "e", "",
 		"Binary format specifier. c,s,l,q for 8,16,32,64 bit signed int. Upper case for unsigned int.")
 	flag.StringVar(&outputFmt, "p", "",
 		"Printf style format, size is implicit from format specifier.")
 	flag.Parse()
 
-	binFile := flag.Arg(0)
+	binFilePath := flag.Arg(0)
 	if binaryFmt == "" {
 		binaryFmt = "CCCCCCCCCCCCCCCC"
 		outputFmt = "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x"
 	}
 
-	var err error
-	if binFile == "" {
-		binReader = os.Stdin
-	} else {
-		binReader, err = os.Open(binFile)
-		if err != nil {
-			fmt.Println("While opening file:", err)
-			os.Exit(1)
-		}
-	}
-	binReader = bufio.NewReader(binReader)
+	binReader := openFile(binFilePath)
 
 	readFunc := parseBinaryFormatStr(binaryFmt)
 	readFuncLen := len(readFunc)
 	data := make([]interface{}, readFuncLen, readFuncLen)
 	var n int
+	var err error
 	for n, err = readData(binReader, readFunc, data); err == nil; n, err = readData(binReader, readFunc, data) {
 		printData(outputFmt, data)
 	}
