@@ -11,6 +11,13 @@ import (
 	"os"
 )
 
+const version = "0.1"
+
+func printVersion() {
+	fmt.Println("bprint version", version)
+	os.Exit(0)
+}
+
 var byteOrder = binary.LittleEndian
 
 var (
@@ -30,6 +37,7 @@ const (
 	I16
 	I32
 	I64
+
 	U8
 	U16
 	U32
@@ -126,11 +134,18 @@ const (
 
 func main() {
 	var binaryFmt, outputFmt string
+	var version bool
 	flag.StringVar(&binaryFmt, "e", "",
-		"Binary format specifier. c,s,l,q for 8,16,32,64 bit signed int. Upper case for unsigned int.")
+		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
 	flag.StringVar(&outputFmt, "p", "",
-		"Printf style format, size is implicit from format specifier.")
+		"printf style output format, size is implicit from binary format specifier")
+	flag.BoolVar(&version, "version", false,
+		"print version information")
 	flag.Parse()
+
+	if version {
+		printVersion()
+	}
 
 	binFilePath := flag.Arg(0)
 	if binaryFmt == "" {
