@@ -106,18 +106,18 @@ func printData(outputFmt string, data []interface{}) {
 	fmt.Println()
 }
 
-func openFile(path string) (reader io.Reader) {
+func openFile(path string) (reader io.Reader, ioReader io.ReadCloser) {
 	if path == "" {
-		reader = os.Stdin
+		ioReader = os.Stdin
 	} else {
 		var err error
-		reader, err = os.Open(path)
+		ioReader, err = os.Open(path)
 		if err != nil {
 			fmt.Println("While opening file:", err)
 			os.Exit(1)
 		}
 	}
-	reader = bufio.NewReader(reader)
+	reader = bufio.NewReader(ioReader)
 	return
 }
 
@@ -140,7 +140,7 @@ func main() {
 		outputFmt = defaultOutputFmt
 	}
 
-	binReader := openFile(binFilePath)
+	binReader, _ := openFile(binFilePath)
 
 	readFunc := parseBinaryFormatStr(binaryFmt)
 	readFuncLen := len(readFunc)
