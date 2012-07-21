@@ -11,9 +11,13 @@ func BenchmarkReadData(b *testing.B) {
 	data := make([]interface{}, readFuncLen, readFuncLen)
 
 	var err error
-	reader := openFile("testdata/bindata")
-	b.StartTimer()
-	for err == nil {
-		_, err = readData(reader, readFunc, data)
+	for i := 0; i < b.N; i++ {
+		bufReader, readCloser := openFile("testdata/bindata")
+		b.StartTimer()
+		for err == nil {
+			_, err = readData(bufReader, readFunc, data)
+		}
+		b.StopTimer()
+		readCloser.Close()
 	}
 }
