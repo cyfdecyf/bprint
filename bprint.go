@@ -1,5 +1,17 @@
 package main
 
+// The binary format specifier uses the same syntax as Ruby's Array.unpack
+//
+// c: signed 8-bit integer
+// s: signed 16-bit integer
+// l: signed 32-bit integer
+// q: signed 65-bit integer
+//
+// Use upper case letter for unsigned integer.
+//
+// Numbers following the letter means how many times the previous string
+// should be repeated.
+//
 // TODO Also check output format string to make sure number of fields matches
 
 import (
@@ -56,14 +68,38 @@ var descCharMap = map[byte]byte{
 	'Q': U64,
 }
 
+func isDigit(b byte) bool {
+	return '0' <= b && b <= '9'
+}
+
 func parseBinaryFormatStr(binFmt string) (formatDesc []byte) {
 	formatDesc = make([]byte, 0)
+	var repeatNum int
+	var desc byte
 	for i := 0; i < len(binFmt); i++ {
 		desc, ok := descCharMap[binFmt[i]]
 		if !ok {
-			fmt.Printf("Data specifier '%c' not supported\n", binFmt[i])
-			os.Exit(1)
+			if isDigit(binFmt[i]) {
+				// Parse repeat number
+				repeatNum = repeatNum*10 + int(binFmt[i]) - '0'
+			} else {
+				fmt.Printf("Data specifier '%c' not supported\n", binFmt[i])
+				os.Exit(1)
+			}
+		} else {
+			if repeatNum != 0 {
+				// The original letter specifier is already added, so minus 1
+				for i := 0; i < repeatNum-1; i++ {
+					formatDesc = append(formatDesc, desc)
+				}
+				repeatNum = 0
+			} else {
+				formatDesc = append(formatDesc, desc)
+			}
 		}
+	}
+	// If the last specifier is a number
+	for i := 0; i < repeatNum-1; i++ {
 		formatDesc = append(formatDesc, desc)
 	}
 	return
