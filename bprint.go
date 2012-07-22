@@ -72,35 +72,40 @@ func isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-func parseBinaryFormatStr(binFmt string) (formatDesc []byte) {
+const noDesc byte = 255
+
+func parseBinaryFmtSpec(binFmt string) (formatDesc []byte) {
 	formatDesc = make([]byte, 0)
 	var repeatNum int
-	var desc byte
+	var prevDesc byte = noDesc
 	for i := 0; i < len(binFmt); i++ {
 		desc, ok := descCharMap[binFmt[i]]
-		if !ok {
-			if isDigit(binFmt[i]) {
-				// Parse repeat number
-				repeatNum = repeatNum*10 + int(binFmt[i]) - '0'
-			} else {
-				fmt.Printf("Data specifier '%c' not supported\n", binFmt[i])
-				os.Exit(1)
-			}
-		} else {
+		if ok {
 			if repeatNum != 0 {
 				// The original letter specifier is already added, so minus 1
 				for i := 0; i < repeatNum-1; i++ {
-					formatDesc = append(formatDesc, desc)
+					formatDesc = append(formatDesc, prevDesc)
 				}
 				repeatNum = 0
+			}
+			formatDesc = append(formatDesc, desc)
+			prevDesc = desc
+		} else {
+			if isDigit(binFmt[i]) {
+				if prevDesc == noDesc {
+					// Number must follow a previous specifier
+					panic("Data specifier error: repeat number without previous data specifier")
+				}
+				// Parse repeat number
+				repeatNum = repeatNum*10 + int(binFmt[i]) - '0'
 			} else {
-				formatDesc = append(formatDesc, desc)
+				panic(fmt.Sprintf("Data specifier '%c' not supported", binFmt[i]))
 			}
 		}
 	}
 	// If the last specifier is a number
 	for i := 0; i < repeatNum-1; i++ {
-		formatDesc = append(formatDesc, desc)
+		formatDesc = append(formatDesc, prevDesc)
 	}
 	return
 }
@@ -169,6 +174,11 @@ const (
 )
 
 func main() {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 	var binaryFmt, outputFmt string
 	var version bool
 	flag.StringVar(&binaryFmt, "e", "",
@@ -191,7 +201,7 @@ func main() {
 
 	binReader, _ := openFile(binFilePath)
 
-	formatDesc := parseBinaryFormatStr(binaryFmt)
+	formatDesc := parseBinaryFmtSpec(binaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 	var n int
