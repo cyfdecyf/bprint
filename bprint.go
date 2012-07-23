@@ -44,8 +44,17 @@ var (
 	u64 uint64
 )
 
+type intType byte
+
+type intDesc struct {
+	typeId intType
+	size   int
+}
+
+const noType intType = 255
+
 const (
-	I8 byte = iota
+	I8 intType = iota
 	I16
 	I32
 	I64
@@ -56,43 +65,43 @@ const (
 	U64
 )
 
-var descCharMap = map[byte]byte{
-	'c': I8,
-	's': I16,
-	'l': I32,
-	'q': I64,
+var descCharMap = map[byte]intDesc{
+	'c': {I8, 1},
+	's': {I16, 2},
+	'l': {I32, 4},
+	'q': {I64, 8},
 
-	'C': U8,
-	'S': U16,
-	'L': U32,
-	'Q': U64,
+	'C': {U8, 1},
+	'S': {U16, 2},
+	'L': {U32, 4},
+	'Q': {U64, 8},
 }
 
 func isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-const noDesc byte = 255
-
-func parseBinaryFmtSpec(binFmt string) (formatDesc []byte) {
-	formatDesc = make([]byte, 0)
+func parseBinaryFmtSpec(binFmt string) (formatDesc []intType, recSize int) {
+	formatDesc = make([]intType, 0)
 	var repeatNum int
-	var prevDesc byte = noDesc
+	prevDesc := intDesc{noType, -1}
 	for i := 0; i < len(binFmt); i++ {
 		desc, ok := descCharMap[binFmt[i]]
 		if ok {
 			if repeatNum != 0 {
 				// The original letter specifier is already added, so minus 1
 				for i := 0; i < repeatNum-1; i++ {
-					formatDesc = append(formatDesc, prevDesc)
+					formatDesc = append(formatDesc, prevDesc.typeId)
 				}
+				recSize += (repeatNum - 1) * prevDesc.size
 				repeatNum = 0
 			}
-			formatDesc = append(formatDesc, desc)
+			formatDesc = append(formatDesc, desc.typeId)
 			prevDesc = desc
+			recSize += desc.size
 		} else {
 			if isDigit(binFmt[i]) {
-				if prevDesc == noDesc {
+				if prevDesc.typeId == noType {
 					// Number must follow a previous specifier
 					panic("Data specifier error: repeat number without previous data specifier")
 				}
@@ -105,12 +114,15 @@ func parseBinaryFmtSpec(binFmt string) (formatDesc []byte) {
 	}
 	// If the last specifier is a number
 	for i := 0; i < repeatNum-1; i++ {
-		formatDesc = append(formatDesc, prevDesc)
+		formatDesc = append(formatDesc, prevDesc.typeId)
+	}
+	if repeatNum != 0 {
+		recSize += (repeatNum - 1) * prevDesc.size
 	}
 	return
 }
 
-func readData(binReader io.Reader, formatDesc []byte, data []interface{}) (n int, err error) {
+func readData(binReader io.Reader, formatDesc []intType, data []interface{}) (n int, err error) {
 	for i, v := range formatDesc {
 		switch v {
 		case I8:
@@ -149,10 +161,17 @@ func readData(binReader io.Reader, formatDesc []byte, data []interface{}) (n int
 }
 
 var (
-	recordCnt int
+	recordCnt  int
+	recordSize int
+	offSet     int
 )
 
+const offsetFmt = "%07x "
+
 func printData(outputFmt string, data []interface{}) {
+	if opt.printOffset {
+		fmt.Printf(offsetFmt, offSet)
+	}
 	if opt.printRecordCnt {
 		fmt.Printf("%d: ", recordCnt)
 	}
@@ -182,6 +201,7 @@ const (
 
 var opt struct {
 	printRecordCnt bool
+	printOffset    bool
 	printVersion   bool
 	binaryFmt      string
 	outputFmt      string
@@ -195,6 +215,8 @@ func init() {
 	flag.BoolVar(&opt.printVersion, "version", false,
 		"print version information")
 	flag.BoolVar(&opt.printRecordCnt, "c", false,
+		"print record count")
+	flag.BoolVar(&opt.printOffset, "o", false,
 		"print record count")
 }
 
@@ -218,7 +240,7 @@ func main() {
 
 	binReader, _ := openFile(binFilePath)
 
-	formatDesc := parseBinaryFmtSpec(opt.binaryFmt)
+	formatDesc, recordSize := parseBinaryFmtSpec(opt.binaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
@@ -227,11 +249,16 @@ func main() {
 	for n, err = readData(binReader, formatDesc, data); err == nil; n, err = readData(binReader, formatDesc, data) {
 		recordCnt++
 		printData(opt.outputFmt, data)
+		offSet += recordSize
 	}
 	// Not enough data for the final line, print out what have been read
 	// if n != 0 && n != formatDescLen {
 	if n != 0 {
 		printData(opt.outputFmt, data[0:n])
+	} else {
+		if opt.printOffset {
+			fmt.Printf(offsetFmt+"\n", offSet)
+		}
 	}
 	if err != io.EOF {
 		if err == io.ErrUnexpectedEOF {

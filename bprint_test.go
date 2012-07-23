@@ -1,27 +1,33 @@
 package main
 
 import (
-	"bytes"
 	"testing"
 )
 
 type binFmtData struct {
 	binFmt  string
-	fmtDesc []byte
+	fmtDesc []intType
+	size    int
 }
 
 func TestParseBinaryFmtSpec(t *testing.T) {
 	testData := []binFmtData{
-		{"cslqCSLQ", []byte{I8, I16, I32, I64, U8, U16, U32, U64}},
-		{"c2", []byte{I8, I8}},
-		{"s1q", []byte{I16, I64}},
-		{"c11q2", []byte{I8, I8, I8, I8, I8, I8, I8, I8, I8, I8, I8, I64, I64}},
+		{"cslqCSLQ", []intType{I8, I16, I32, I64, U8, U16, U32, U64}, 30},
+		{"c2", []intType{I8, I8}, 2},
+		{"s1q", []intType{I16, I64}, 10},
+		{"c11q2", []intType{I8, I8, I8, I8, I8, I8, I8, I8, I8, I8, I8, I64, I64}, 27},
 	}
 
 	for _, td := range testData {
-		res := parseBinaryFmtSpec(td.binFmt)
-		if bytes.Compare(td.fmtDesc, res) != 0 {
-			t.Error("binary fmt spec:", td.binFmt, "not parsed correctly, got", res)
+		res, size := parseBinaryFmtSpec(td.binFmt)
+		for i, v := range res {
+			if td.fmtDesc[i] != v {
+				t.Error("binary fmt spec:", td.binFmt, "not parsed correctly, got", res)
+			}
+		}
+		if size != td.size {
+			t.Error("binary fmt spec:", td.binFmt, "size should be", td.size,
+				", got", size)
 		}
 	}
 }
@@ -53,7 +59,7 @@ func BenchmarkReadData(b *testing.B) {
 	//   use function         ~3.6s
 	//   use switch statement ~2.7s
 	b.StopTimer()
-	formatDesc := parseBinaryFmtSpec(defautlBinaryFmt)
+	formatDesc, _ := parseBinaryFmtSpec(defautlBinaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
