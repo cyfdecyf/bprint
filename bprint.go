@@ -44,11 +44,6 @@ var (
 	u64 uint64
 )
 
-var (
-	printRecordCnt bool
-	recordCnt      int
-)
-
 const (
 	I8 byte = iota
 	I16
@@ -153,8 +148,12 @@ func readData(binReader io.Reader, formatDesc []byte, data []interface{}) (n int
 	return
 }
 
+var (
+	recordCnt int
+)
+
 func printData(outputFmt string, data []interface{}) {
-	if printRecordCnt {
+	if opt.printRecordCnt {
 		fmt.Printf("%d: ", recordCnt)
 	}
 	fmt.Printf(outputFmt, data...)
@@ -181,37 +180,45 @@ const (
 	defaultOutputFmt = "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x"
 )
 
+var opt struct {
+	printRecordCnt bool
+	printVersion   bool
+	binaryFmt      string
+	outputFmt      string
+}
+
+func init() {
+	flag.StringVar(&opt.binaryFmt, "e", "",
+		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
+	flag.StringVar(&opt.outputFmt, "p", "",
+		"printf style output format, size is implicit from binary format specifier")
+	flag.BoolVar(&opt.printVersion, "version", false,
+		"print version information")
+	flag.BoolVar(&opt.printRecordCnt, "c", false,
+		"print record count")
+}
+
 func main() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(err)
 		}
 	}()
-	var binaryFmt, outputFmt string
-	var version bool
-	flag.StringVar(&binaryFmt, "e", "",
-		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
-	flag.StringVar(&outputFmt, "p", "",
-		"printf style output format, size is implicit from binary format specifier")
-	flag.BoolVar(&version, "version", false,
-		"print version information")
-	flag.BoolVar(&printRecordCnt, "c", false,
-		"print record count")
 	flag.Parse()
 
-	if version {
+	if opt.printVersion {
 		printVersion()
 	}
 
 	binFilePath := flag.Arg(0)
-	if binaryFmt == "" {
-		binaryFmt = defautlBinaryFmt
-		outputFmt = defaultOutputFmt
+	if opt.binaryFmt == "" {
+		opt.binaryFmt = defautlBinaryFmt
+		opt.outputFmt = defaultOutputFmt
 	}
 
 	binReader, _ := openFile(binFilePath)
 
-	formatDesc := parseBinaryFmtSpec(binaryFmt)
+	formatDesc := parseBinaryFmtSpec(opt.binaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
@@ -219,12 +226,12 @@ func main() {
 	var err error
 	for n, err = readData(binReader, formatDesc, data); err == nil; n, err = readData(binReader, formatDesc, data) {
 		recordCnt++
-		printData(outputFmt, data)
+		printData(opt.outputFmt, data)
 	}
 	// Not enough data for the final line, print out what have been read
 	// if n != 0 && n != formatDescLen {
 	if n != 0 {
-		printData(outputFmt, data[0:n])
+		printData(opt.outputFmt, data[0:n])
 	}
 	if err != io.EOF {
 		if err == io.ErrUnexpectedEOF {
