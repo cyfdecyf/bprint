@@ -44,6 +44,11 @@ var (
 	u64 uint64
 )
 
+var (
+	printRecordCnt bool
+	recordCnt      int
+)
+
 const (
 	I8 byte = iota
 	I16
@@ -149,6 +154,9 @@ func readData(binReader io.Reader, formatDesc []byte, data []interface{}) (n int
 }
 
 func printData(outputFmt string, data []interface{}) {
+	if printRecordCnt {
+		fmt.Printf("%d: ", recordCnt)
+	}
 	fmt.Printf(outputFmt, data...)
 	fmt.Println()
 }
@@ -187,6 +195,8 @@ func main() {
 		"printf style output format, size is implicit from binary format specifier")
 	flag.BoolVar(&version, "version", false,
 		"print version information")
+	flag.BoolVar(&printRecordCnt, "c", false,
+		"print record count")
 	flag.Parse()
 
 	if version {
@@ -204,9 +214,11 @@ func main() {
 	formatDesc := parseBinaryFmtSpec(binaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
-	var n int
+
+	n := 0
 	var err error
 	for n, err = readData(binReader, formatDesc, data); err == nil; n, err = readData(binReader, formatDesc, data) {
+		recordCnt++
 		printData(outputFmt, data)
 	}
 	// Not enough data for the final line, print out what have been read
