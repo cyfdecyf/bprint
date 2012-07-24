@@ -172,14 +172,14 @@ var (
 
 const offsetFmt = "%07x "
 
-func printData(outputFmt string, data []interface{}) {
+func printData(printFmt string, data []interface{}) {
 	if opt.printOffset {
 		fmt.Printf(offsetFmt, offSet)
 	}
 	if opt.printRecordCnt {
 		fmt.Printf("%d: ", recordCnt)
 	}
-	fmt.Printf(outputFmt, data...)
+	fmt.Printf(printFmt, data...)
 }
 
 func openFile(path string) (reader io.Reader, ioReader io.ReadCloser) {
@@ -206,44 +206,44 @@ var opt struct {
 	printOffset    bool
 	printVersion   bool
 	binaryFmt      string
-	outputFmt      string
+	printFmt       string
 }
 
 func repeatWithSep(rep, sep string, cnt int) string {
-	outputFmt := strings.Repeat(rep+sep, cnt)
-	return outputFmt[:len(outputFmt)-len(sep)]
+	printFmt := strings.Repeat(rep+sep, cnt)
+	return printFmt[:len(printFmt)-len(sep)]
 }
 
-func generateOutputFmt(cnt int, sep string) string {
+func generatePrintFmt(cnt int, sep string) string {
 	return repeatWithSep("%02x", sep, cnt)
 }
 
-func processOutputFmt(outputFmt string) string {
+func processPrintFmt(printFmt string) string {
 	// Format like "%02d[sep]8#", "%d" will be repeated 8 times, with
 	// seperator inserted
 	outSpecPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
 	if err != nil {
 		fmt.Println("Output spec parsing regexp compile error:", err)
 	}
-	mat := outSpecPat.FindAllStringSubmatchIndex(outputFmt, -1)
+	mat := outSpecPat.FindAllStringSubmatchIndex(printFmt, -1)
 	if mat == nil {
-		return outputFmt
+		return printFmt
 	}
 
 	buf := new(bytes.Buffer)
 	prevIdx := 0
 	for _, v := range mat {
-		buf.WriteString(outputFmt[prevIdx:v[0]])
+		buf.WriteString(printFmt[prevIdx:v[0]])
 		prevIdx = v[1]
-		if v[0] > 0 && outputFmt[v[0]-1] == '%' {
+		if v[0] > 0 && printFmt[v[0]-1] == '%' {
 			// Do not parse spec following %%
-			buf.WriteString(outputFmt[v[0]:v[1]])
+			buf.WriteString(printFmt[v[0]:v[1]])
 			continue
 		}
 
-		spec := outputFmt[v[2]:v[3]]
-		sep := outputFmt[v[4]:v[5]]
-		cntStr := outputFmt[v[6]:v[7]]
+		spec := printFmt[v[2]:v[3]]
+		sep := printFmt[v[4]:v[5]]
+		cntStr := printFmt[v[6]:v[7]]
 		if sep == "" {
 			sep = " "
 		}
@@ -254,7 +254,7 @@ func processOutputFmt(outputFmt string) string {
 
 		buf.WriteString(repeatWithSep(spec, sep, cnt))
 	}
-	buf.WriteString(outputFmt[prevIdx:])
+	buf.WriteString(printFmt[prevIdx:])
 
 	return buf.String()
 }
@@ -262,8 +262,8 @@ func processOutputFmt(outputFmt string) string {
 func init() {
 	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
 		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
-	flag.StringVar(&opt.outputFmt, "p", "",
-		"printf style output format, size is implicit from binary format specifier, default to %02x for each field")
+	flag.StringVar(&opt.printFmt, "p", "",
+		"printf style format string, size is implicit from binary format specifier, default to %02x for each field")
 	flag.BoolVar(&opt.printVersion, "version", false,
 		"print version information")
 	flag.BoolVar(&opt.printRecordCnt, "c", false,
@@ -292,22 +292,22 @@ func main() {
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
-	if opt.outputFmt == "" {
-		opt.outputFmt = generateOutputFmt(formatDescLen, " ")
+	if opt.printFmt == "" {
+		opt.printFmt = generatePrintFmt(formatDescLen, " ")
 	}
-	opt.outputFmt = processOutputFmt(opt.outputFmt)
-	opt.outputFmt += "\n"
+	opt.printFmt = processPrintFmt(opt.printFmt)
+	opt.printFmt += "\n"
 
 	n := 0
 	var err error
 	for n, err = readData(binReader, formatDesc, data); err == nil; n, err = readData(binReader, formatDesc, data) {
 		recordCnt++
-		printData(opt.outputFmt, data)
+		printData(opt.printFmt, data)
 		offSet += recordSize
 	}
 	// Not enough data for the final line, print out what have been read
 	if n != 0 {
-		printData(opt.outputFmt, data[0:n])
+		printData(opt.printFmt, data[0:n])
 	} else if opt.printOffset {
 		fmt.Printf(offsetFmt+"\n", offSet)
 	}
