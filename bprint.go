@@ -16,11 +16,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -206,10 +209,56 @@ var opt struct {
 	outputFmt      string
 }
 
-func generateOutputFormat(count int, sep string) string {
-	outputFmt := strings.Repeat("%02x"+sep, count)
+func repeatWithSep(rep, sep string, cnt int) string {
+	outputFmt := strings.Repeat(rep+sep, cnt)
 	return outputFmt[:len(outputFmt)-len(sep)]
 }
+
+func generateOutputFmt(cnt int, sep string) string {
+	return repeatWithSep("%02x", sep, cnt)
+}
+
+func processOutputFmt(outputFmt string) string {
+	// Format like "%02d[sep]8#", "%d" will be repeated 8 times, with
+	// seperator inserted
+	outSpecPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
+	if err != nil {
+		fmt.Println("Output spec parsing regexp compile error:", err)
+	}
+	mat := outSpecPat.FindAllStringSubmatchIndex(outputFmt, -1)
+	if mat == nil {
+		return outputFmt
+	}
+
+	buf := new(bytes.Buffer)
+	prevIdx := 0
+	for _, v := range mat {
+		buf.WriteString(outputFmt[prevIdx:v[0]])
+		prevIdx = v[1]
+		if v[0] > 0 && outputFmt[v[0]-1] == '%' {
+			// Do not parse spec following %%
+			buf.WriteString(outputFmt[v[0]:v[1]])
+			continue
+		}
+
+		spec := outputFmt[v[2]:v[3]]
+		sep := outputFmt[v[4]:v[5]]
+		cntStr := outputFmt[v[6]:v[7]]
+		if sep == "" {
+			sep = " "
+		}
+		cnt, err := strconv.Atoi(cntStr)
+		if err != nil {
+			panic(err)
+		}
+
+		buf.WriteString(repeatWithSep(spec, sep, cnt))
+	}
+	buf.WriteString(outputFmt[prevIdx:])
+
+	return buf.String()
+}
+
 func init() {
 	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
 		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
@@ -244,8 +293,9 @@ func main() {
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
 	if opt.outputFmt == "" {
-		opt.outputFmt = generateOutputFormat(formatDescLen, " ")
+		opt.outputFmt = generateOutputFmt(formatDescLen, " ")
 	}
+	opt.outputFmt = processOutputFmt(opt.outputFmt)
 	opt.outputFmt += "\n"
 
 	n := 0

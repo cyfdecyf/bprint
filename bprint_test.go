@@ -52,10 +52,26 @@ func TestParseNospecNumberBinaryFormatSpec(t *testing.T) {
 
 func TestGenerateOutputFormat(t *testing.T) {
 	var s string
-	s = generateOutputFormat(2, " ")
+	s = generateOutputFmt(2, " ")
 
 	if s != "%02x %02x" {
 		t.Error("length 2 space sep error")
+	}
+}
+
+func TestProcessOutputFmt(t *testing.T) {
+	td := []string{
+		"hello %02d2# %#07x nihao %09o, 2#", "hello %02d %02d %#07x nihao %09o, %09o",
+		"%#08c %d %x hello", "%#08c %d %x hello",
+		"%#01x1# this %2d,2# world", "%#01x this %2d,%2d world",
+		"head %%02d2# end", "head %%02d2# end",
+	}
+
+	for i := 0; i < len(td)/2; i++ {
+		res := processOutputFmt(td[2*i])
+		if res != td[2*i+1] {
+			t.Error("Output format processing wrong ", td[2*i], " converted to:", res)
+		}
 	}
 }
 
