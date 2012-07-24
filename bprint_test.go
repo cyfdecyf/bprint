@@ -60,17 +60,39 @@ func TestGenerateOutputFormat(t *testing.T) {
 }
 
 func TestProcessPrintFmt(t *testing.T) {
-	td := []string{
-		"hello %02d2# %#07x nihao %09o, 2#", "hello %02d %02d %#07x nihao %09o, %09o",
-		"%#08c %d %x hello", "%#08c %d %x hello",
-		"%#01x1# this %2d,2# world", "%#01x this %2d,%2d world",
-		"head %%02d2# end", "head %%02d2# end",
+	testData := []struct {
+		spec string
+		res  string
+	}{
+		{"hello %02d2# %#07x nihao %09o, 2#", "hello %02d %02d %#07x nihao %09o, %09o"},
+		{"%#08c %d %x hello", "%#08c %d %x hello"},
+		{"%#01x1# this %2d,2# world", "%#01x this %2d,%2d world"},
+		{"head %%02d2# end", "head %%02d2# end"},
 	}
 
-	for i := 0; i < len(td)/2; i++ {
-		res := processPrintFmt(td[2*i])
-		if res != td[2*i+1] {
-			t.Error("Output format processing wrong ", td[2*i], " converted to:", res)
+	for _, td := range testData {
+		res := processPrintFmt(td.spec)
+		if res != td.res {
+			t.Error("Print format processing wrong", td.spec, "converted to:", res)
+		}
+	}
+}
+
+func TestCountPrintFmtSpec(t *testing.T) {
+	testData := []struct {
+		spec string
+		cnt  int
+	}{
+		{"hello %02d2# %#07x nihao %09o, 2#", 3},
+		{"%#08c %d %x hello", 3},
+		{"%#01x1# this %2d,2# world", 2},
+		{"head %%02d2# end", 0},
+	}
+
+	for _, td := range testData {
+		res := countPrintFmtSpec(td.spec)
+		if td.cnt != res {
+			t.Error("Print format spec count wrong", td.spec, "counted to:", res)
 		}
 	}
 }

@@ -11,8 +11,6 @@ package main
 //
 // Numbers following the letter means how many times the previous string
 // should be repeated.
-//
-// TODO Also check output format string to make sure number of fields matches
 
 import (
 	"bufio"
@@ -221,11 +219,11 @@ func generatePrintFmt(cnt int, sep string) string {
 func processPrintFmt(printFmt string) string {
 	// Format like "%02d[sep]8#", "%d" will be repeated 8 times, with
 	// seperator inserted
-	outSpecPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
+	printSpecPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
 	if err != nil {
-		fmt.Println("Output spec parsing regexp compile error:", err)
+		panic(err)
 	}
-	mat := outSpecPat.FindAllStringSubmatchIndex(printFmt, -1)
+	mat := printSpecPat.FindAllStringSubmatchIndex(printFmt, -1)
 	if mat == nil {
 		return printFmt
 	}
@@ -259,6 +257,17 @@ func processPrintFmt(printFmt string) string {
 	return buf.String()
 }
 
+func countPrintFmtSpec(printFmt string) int {
+	specStr := "%[^cdxo%]*[cdxo]"
+	// specStr must have a non-% preceeding or start from the beginning of line
+	printSpecPat, err := regexp.Compile("([^%]{1}" + specStr + "|^" + specStr + ")")
+	if err != nil {
+		panic(err)
+	}
+
+	return len(printSpecPat.FindAllStringIndex(printFmt, -1))
+}
+
 func init() {
 	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
 		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
@@ -276,6 +285,7 @@ func main() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(err)
+			os.Exit(1)
 		}
 	}()
 	flag.Parse()
@@ -296,6 +306,11 @@ func main() {
 		opt.printFmt = generatePrintFmt(formatDescLen, " ")
 	}
 	opt.printFmt = processPrintFmt(opt.printFmt)
+	printSpecCnt := countPrintFmtSpec(opt.printFmt)
+	if printSpecCnt != formatDescLen {
+		panic(fmt.Sprintf("Binary spec has %d fields, print fmt has %d fields. Not match.",
+			formatDescLen, printSpecCnt))
+	}
 	opt.printFmt += "\n"
 
 	n := 0
