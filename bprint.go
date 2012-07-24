@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-const version = "0.1"
+const version = "0.2"
 
 func printVersion() {
 	fmt.Println("bprint version", version)
