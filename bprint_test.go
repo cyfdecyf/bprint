@@ -50,6 +50,15 @@ func TestParseNospecNumberBinaryFormatSpec(t *testing.T) {
 	t.Error("Should panic for repeat number without spec")
 }
 
+func TestGenerateOutputFormat(t *testing.T) {
+	var s string
+	s = generateOutputFormat(2, " ")
+
+	if s != "%02x %02x" {
+		t.Error("length 2 space sep error")
+	}
+}
+
 func BenchmarkReadData(b *testing.B) {
 	// Benchmark setup:
 	//   Intel Q6600 CPU, Debian 6 with Go 1.0.1

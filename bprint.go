@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 const version = "0.1"
@@ -176,7 +177,6 @@ func printData(outputFmt string, data []interface{}) {
 		fmt.Printf("%d: ", recordCnt)
 	}
 	fmt.Printf(outputFmt, data...)
-	fmt.Println()
 }
 
 func openFile(path string) (reader io.Reader, ioReader io.ReadCloser) {
@@ -195,8 +195,7 @@ func openFile(path string) (reader io.Reader, ioReader io.ReadCloser) {
 }
 
 const (
-	defautlBinaryFmt = "CCCCCCCCCCCCCCCC"
-	defaultOutputFmt = "%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x"
+	defautlBinaryFmt = "C16"
 )
 
 var opt struct {
@@ -207,11 +206,15 @@ var opt struct {
 	outputFmt      string
 }
 
+func generateOutputFormat(count int, sep string) string {
+	outputFmt := strings.Repeat("%02x"+sep, count)
+	return outputFmt[:len(outputFmt)-len(sep)]
+}
 func init() {
-	flag.StringVar(&opt.binaryFmt, "e", "",
+	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
 		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
 	flag.StringVar(&opt.outputFmt, "p", "",
-		"printf style output format, size is implicit from binary format specifier")
+		"printf style output format, size is implicit from binary format specifier, default to %02x for each field")
 	flag.BoolVar(&opt.printVersion, "version", false,
 		"print version information")
 	flag.BoolVar(&opt.printRecordCnt, "c", false,
@@ -233,16 +236,17 @@ func main() {
 	}
 
 	binFilePath := flag.Arg(0)
-	if opt.binaryFmt == "" {
-		opt.binaryFmt = defautlBinaryFmt
-		opt.outputFmt = defaultOutputFmt
-	}
 
 	binReader, _ := openFile(binFilePath)
 
 	formatDesc, recordSize := parseBinaryFmtSpec(opt.binaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
+
+	if opt.outputFmt == "" {
+		opt.outputFmt = generateOutputFormat(formatDescLen, " ")
+	}
+	opt.outputFmt += "\n"
 
 	n := 0
 	var err error
@@ -252,13 +256,10 @@ func main() {
 		offSet += recordSize
 	}
 	// Not enough data for the final line, print out what have been read
-	// if n != 0 && n != formatDescLen {
 	if n != 0 {
 		printData(opt.outputFmt, data[0:n])
-	} else {
-		if opt.printOffset {
-			fmt.Printf(offsetFmt+"\n", offSet)
-		}
+	} else if opt.printOffset {
+		fmt.Printf(offsetFmt+"\n", offSet)
 	}
 	if err != io.EOF {
 		if err == io.ErrUnexpectedEOF {
