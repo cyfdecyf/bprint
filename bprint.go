@@ -5,7 +5,7 @@ package main
 // c: signed 8-bit integer
 // s: signed 16-bit integer
 // l: signed 32-bit integer
-// q: signed 65-bit integer
+// q: signed 64-bit integer
 //
 // Use upper case letter for unsigned integer.
 //
@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-const version = "0.2"
+const version = "0.2.1"
 
 func printVersion() {
 	fmt.Println("bprint version", version)
