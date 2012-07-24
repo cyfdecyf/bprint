@@ -1,6 +1,6 @@
 package main
 
-// The binary format specifier uses the same syntax as Ruby's Array.unpack
+// The binary format string uses the same syntax as Ruby's Array.unpack
 //
 // c: signed 8-bit integer
 // s: signed 16-bit integer
@@ -83,40 +83,40 @@ func isDigit(b byte) bool {
 	return '0' <= b && b <= '9'
 }
 
-func parseBinaryFmtSpec(binFmt string) (formatDesc []intType, recSize int) {
-	formatDesc = make([]intType, 0)
+func parseBinaryFmt(binFmt string) (formatField []intType, recSize int) {
+	formatField = make([]intType, 0)
 	var repeatNum int
 	prevDesc := intDesc{noType, -1}
 	for i := 0; i < len(binFmt); i++ {
 		desc, ok := descCharMap[binFmt[i]]
 		if ok {
 			if repeatNum != 0 {
-				// The original letter specifier is already added, so minus 1
+				// The original field is already added, so minus 1
 				for i := 0; i < repeatNum-1; i++ {
-					formatDesc = append(formatDesc, prevDesc.typeId)
+					formatField = append(formatField, prevDesc.typeId)
 				}
 				recSize += (repeatNum - 1) * prevDesc.size
 				repeatNum = 0
 			}
-			formatDesc = append(formatDesc, desc.typeId)
+			formatField = append(formatField, desc.typeId)
 			prevDesc = desc
 			recSize += desc.size
 		} else {
 			if isDigit(binFmt[i]) {
 				if prevDesc.typeId == noType {
-					// Number must follow a previous specifier
-					panic("Data specifier error: repeat number without previous data specifier")
+					// Number must follow a previous field
+					panic("Data field error: repeat number without previous data field")
 				}
 				// Parse repeat number
 				repeatNum = repeatNum*10 + int(binFmt[i]) - '0'
 			} else {
-				panic(fmt.Sprintf("Data specifier '%c' not supported", binFmt[i]))
+				panic(fmt.Sprintf("Data field '%c' not supported", binFmt[i]))
 			}
 		}
 	}
-	// If the last specifier is a number
+	// If the last field has repeat cnt
 	for i := 0; i < repeatNum-1; i++ {
-		formatDesc = append(formatDesc, prevDesc.typeId)
+		formatField = append(formatField, prevDesc.typeId)
 	}
 	if repeatNum != 0 {
 		recSize += (repeatNum - 1) * prevDesc.size
@@ -124,8 +124,8 @@ func parseBinaryFmtSpec(binFmt string) (formatDesc []intType, recSize int) {
 	return
 }
 
-func readData(binReader io.Reader, formatDesc []intType, data []interface{}) (n int, err error) {
-	for i, v := range formatDesc {
+func readData(binReader io.Reader, formatField []intType, data []interface{}) (n int, err error) {
+	for i, v := range formatField {
 		switch v {
 		case I8:
 			err = binary.Read(binReader, byteOrder, &i8)
@@ -219,11 +219,11 @@ func generatePrintFmt(cnt int, sep string) string {
 func processPrintFmt(printFmt string) string {
 	// Format like "%02d[sep]8#", "%d" will be repeated 8 times, with
 	// seperator inserted
-	printSpecPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
+	printFieldPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
 	if err != nil {
 		panic(err)
 	}
-	mat := printSpecPat.FindAllStringSubmatchIndex(printFmt, -1)
+	mat := printFieldPat.FindAllStringSubmatchIndex(printFmt, -1)
 	if mat == nil {
 		return printFmt
 	}
@@ -234,12 +234,12 @@ func processPrintFmt(printFmt string) string {
 		buf.WriteString(printFmt[prevIdx:v[0]])
 		prevIdx = v[1]
 		if v[0] > 0 && printFmt[v[0]-1] == '%' {
-			// Do not parse spec following %%
+			// Do not parse field following %%
 			buf.WriteString(printFmt[v[0]:v[1]])
 			continue
 		}
 
-		spec := printFmt[v[2]:v[3]]
+		field := printFmt[v[2]:v[3]]
 		sep := printFmt[v[4]:v[5]]
 		cntStr := printFmt[v[6]:v[7]]
 		if sep == "" {
@@ -250,29 +250,29 @@ func processPrintFmt(printFmt string) string {
 			panic(err)
 		}
 
-		buf.WriteString(repeatWithSep(spec, sep, cnt))
+		buf.WriteString(repeatWithSep(field, sep, cnt))
 	}
 	buf.WriteString(printFmt[prevIdx:])
 
 	return buf.String()
 }
 
-func countPrintFmtSpec(printFmt string) int {
-	specStr := "%[^cdxo%]*[cdxo]"
-	// specStr must have a non-% preceeding or start from the beginning of line
-	printSpecPat, err := regexp.Compile("([^%]{1}" + specStr + "|^" + specStr + ")")
+func countPrintFmtField(printFmt string) int {
+	fieldStr := "%[^cdxo%]*[cdxo]"
+	// fieldStr must have a non-% preceeding or start from the beginning of line
+	printFieldPat, err := regexp.Compile("([^%]{1}" + fieldStr + "|^" + fieldStr + ")")
 	if err != nil {
 		panic(err)
 	}
 
-	return len(printSpecPat.FindAllStringIndex(printFmt, -1))
+	return len(printFieldPat.FindAllStringIndex(printFmt, -1))
 }
 
 func init() {
 	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
-		"binary format specifier. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
+		"binary format string. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
 	flag.StringVar(&opt.printFmt, "p", "",
-		"printf style format string, size is implicit from binary format specifier, default to %02x for each field")
+		"printf style format string, size is implicit from binary format string, default to %02x for each field")
 	flag.BoolVar(&opt.printVersion, "version", false,
 		"print version information")
 	flag.BoolVar(&opt.printRecordCnt, "c", false,
@@ -298,24 +298,24 @@ func main() {
 
 	binReader, _ := openFile(binFilePath)
 
-	formatDesc, recordSize := parseBinaryFmtSpec(opt.binaryFmt)
-	formatDescLen := len(formatDesc)
-	data := make([]interface{}, formatDescLen, formatDescLen)
+	formatField, recordSize := parseBinaryFmt(opt.binaryFmt)
+	formatFieldCnt := len(formatField)
+	data := make([]interface{}, formatFieldCnt, formatFieldCnt)
 
 	if opt.printFmt == "" {
-		opt.printFmt = generatePrintFmt(formatDescLen, " ")
+		opt.printFmt = generatePrintFmt(formatFieldCnt, " ")
 	}
 	opt.printFmt = processPrintFmt(opt.printFmt)
-	printSpecCnt := countPrintFmtSpec(opt.printFmt)
-	if printSpecCnt != formatDescLen {
-		panic(fmt.Sprintf("Binary spec has %d fields, print fmt has %d fields. Not match.",
-			formatDescLen, printSpecCnt))
+	printFieldCnt := countPrintFmtField(opt.printFmt)
+	if printFieldCnt != formatFieldCnt {
+		panic(fmt.Sprintf("Binary format has %d fields, print fmt has %d fields. Not match.",
+			formatFieldCnt, printFieldCnt))
 	}
 	opt.printFmt += "\n"
 
 	n := 0
 	var err error
-	for n, err = readData(binReader, formatDesc, data); err == nil; n, err = readData(binReader, formatDesc, data) {
+	for n, err = readData(binReader, formatField, data); err == nil; n, err = readData(binReader, formatField, data) {
 		recordCnt++
 		printData(opt.printFmt, data)
 		offSet += recordSize

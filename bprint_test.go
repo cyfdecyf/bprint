@@ -10,7 +10,7 @@ type binFmtData struct {
 	size    int
 }
 
-func TestParseBinaryFmtSpec(t *testing.T) {
+func TestParseBinaryFmt(t *testing.T) {
 	testData := []binFmtData{
 		{"cslqCSLQ", []intType{I8, I16, I32, I64, U8, U16, U32, U64}, 30},
 		{"c2", []intType{I8, I8}, 2},
@@ -19,38 +19,38 @@ func TestParseBinaryFmtSpec(t *testing.T) {
 	}
 
 	for _, td := range testData {
-		res, size := parseBinaryFmtSpec(td.binFmt)
+		res, size := parseBinaryFmt(td.binFmt)
 		for i, v := range res {
 			if td.fmtDesc[i] != v {
-				t.Error("binary fmt spec:", td.binFmt, "not parsed correctly, got", res)
+				t.Error("binary fmt:", td.binFmt, "not parsed correctly, got", res)
 			}
 		}
 		if size != td.size {
-			t.Error("binary fmt spec:", td.binFmt, "size should be", td.size,
+			t.Error("binary fmt:", td.binFmt, "size should be", td.size,
 				", got", size)
 		}
 	}
 }
 
-func TestParseUnsupportedBinaryFormatSpec(t *testing.T) {
+func TestParseUnsupportedBinaryFmt(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 		}
 	}()
-	parseBinaryFmtSpec("ccid")
-	t.Error("Should panic for unsuppored specifier")
+	parseBinaryFmt("ccid")
+	t.Error("Should panic for unsuppored field")
 }
 
-func TestParseNospecNumberBinaryFormatSpec(t *testing.T) {
+func TestParseNofieldNumberBinaryFmt(t *testing.T) {
 	defer func() {
 		if err := recover(); err != nil {
 		}
 	}()
-	parseBinaryFmtSpec("11clsq")
-	t.Error("Should panic for repeat number without spec")
+	parseBinaryFmt("11clsq")
+	t.Error("Should panic for repeat number without field")
 }
 
-func TestGenerateOutputFormat(t *testing.T) {
+func TestGenerateOutputFmt(t *testing.T) {
 	var s string
 	s = generatePrintFmt(2, " ")
 
@@ -78,7 +78,7 @@ func TestProcessPrintFmt(t *testing.T) {
 	}
 }
 
-func TestCountPrintFmtSpec(t *testing.T) {
+func TestCountPrintFmtField(t *testing.T) {
 	testData := []struct {
 		spec string
 		cnt  int
@@ -90,7 +90,7 @@ func TestCountPrintFmtSpec(t *testing.T) {
 	}
 
 	for _, td := range testData {
-		res := countPrintFmtSpec(td.spec)
+		res := countPrintFmtField(td.spec)
 		if td.cnt != res {
 			t.Error("Print format spec count wrong", td.spec, "counted to:", res)
 		}
@@ -100,13 +100,13 @@ func TestCountPrintFmtSpec(t *testing.T) {
 func BenchmarkReadData(b *testing.B) {
 	// Benchmark setup:
 	//   Intel Q6600 CPU, Debian 6 with Go 1.0.1
-	//   11MB random binary data, with default binary format specifier
+	//   11MB random binary data, with default binary format
 	//
 	// Execution time:
 	//   use function         ~3.6s
 	//   use switch statement ~2.7s
 	b.StopTimer()
-	formatDesc, _ := parseBinaryFmtSpec(defautlBinaryFmt)
+	formatDesc, _ := parseBinaryFmt(defautlBinaryFmt)
 	formatDescLen := len(formatDesc)
 	data := make([]interface{}, formatDescLen, formatDescLen)
 
