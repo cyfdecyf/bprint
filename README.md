@@ -23,6 +23,7 @@ printed is specified separately using the `-e` and `-p` option.
   - `%c`, `%d`, `%x`, `%o` are supported, size and signess information is implicit from the binary field information
   - **if not specified, defaults to `%02x` for each binary field**
   - field can be followed by an optional seperator and count to repeat. For example, `%2d-3#` is eqivalent to `%2d-%2d-%2d`
+- `-f` read binary and print format from file. 1st line for binary format, 2nd line for print format (optional). Command line option overrides spec in file
 - `-o` print offset at the left most column
 - `-c` print how many record has been read (right after offset column)
 - `--version` print version information

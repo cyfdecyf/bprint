@@ -195,18 +195,6 @@ func openFile(path string) (reader io.Reader, ioReader io.ReadCloser) {
 	return
 }
 
-const (
-	defautlBinaryFmt = "C16"
-)
-
-var opt struct {
-	printRecordCnt bool
-	printOffset    bool
-	printVersion   bool
-	binaryFmt      string
-	printFmt       string
-}
-
 func repeatWithSep(rep, sep string, cnt int) string {
 	printFmt := strings.Repeat(rep+sep, cnt)
 	return printFmt[:len(printFmt)-len(sep)]
@@ -218,7 +206,8 @@ func generatePrintFmt(cnt int, sep string) string {
 
 func processPrintFmt(printFmt string) string {
 	// Format like "%02d[sep]8#", "%d" will be repeated 8 times, with
-	// seperator inserted
+	// seperator inserted. The # is used to mark the end of separator and repeat count,
+	// it's not necessary, only to make it easier to see where is the end of the field.
 	printFieldPat, err := regexp.Compile("(%[^cdxo%]*[cdxo])([^\\d]*)(\\d+)#")
 	if err != nil {
 		panic(err)
@@ -268,11 +257,53 @@ func countPrintFmtField(printFmt string) int {
 	return len(printFieldPat.FindAllStringIndex(printFmt, -1))
 }
 
+func readOptionFromFile() {
+	f, err := os.Open(opt.formatFile)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	buf := bufio.NewReader(f)
+	const fmtCnt = 2
+	line := [fmtCnt]string{}
+	for i := 0; i < fmtCnt; i++ {
+		line[i], err = buf.ReadString('\n')
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			panic(fmt.Sprintf("Error reading from format file %v", err))
+		}
+	}
+	if opt.binaryFmt == "" {
+		opt.binaryFmt = strings.TrimRight(line[0], "\n")
+	}
+	if opt.printFmt == "" {
+		opt.printFmt = strings.TrimRight(line[1], "\n")
+	}
+}
+
+const (
+	defautlBinaryFmt = "C16"
+)
+
+var opt struct {
+	printRecordCnt bool
+	printOffset    bool
+	printVersion   bool
+	binaryFmt      string
+	printFmt       string
+	formatFile     string
+}
+
 func init() {
-	flag.StringVar(&opt.binaryFmt, "e", defautlBinaryFmt,
+	flag.StringVar(&opt.binaryFmt, "e", "",
 		"binary format string. c,s,l,q for signed 8,16,32,64-bit int. Upper case for unsigned int")
 	flag.StringVar(&opt.printFmt, "p", "",
 		"printf style format string, size is implicit from binary format string, default to %02x for each field")
+	flag.StringVar(&opt.formatFile, "f", "",
+		"read binary and print format from file. 1st line for binary format, 2nd line for print format (optional)\n\t "+
+			"command line option overrides option in file")
 	flag.BoolVar(&opt.printVersion, "version", false,
 		"print version information")
 	flag.BoolVar(&opt.printRecordCnt, "c", false,
@@ -288,31 +319,38 @@ func main() {
 			os.Exit(1)
 		}
 	}()
-	flag.Parse()
 
+	flag.Parse()
 	if opt.printVersion {
 		printVersion()
 	}
-
-	binFilePath := flag.Arg(0)
-
-	binReader, _ := openFile(binFilePath)
-
+	if opt.formatFile != "" {
+		readOptionFromFile()
+	}
+	if opt.binaryFmt == "" {
+		opt.binaryFmt = defautlBinaryFmt
+	}
 	formatField, recordSize := parseBinaryFmt(opt.binaryFmt)
 	formatFieldCnt := len(formatField)
-	data := make([]interface{}, formatFieldCnt, formatFieldCnt)
-
 	if opt.printFmt == "" {
 		opt.printFmt = generatePrintFmt(formatFieldCnt, " ")
+	} else {
+		opt.printFmt = processPrintFmt(opt.printFmt)
 	}
-	opt.printFmt = processPrintFmt(opt.printFmt)
+	// Check if binary and print format has the same field count
 	printFieldCnt := countPrintFmtField(opt.printFmt)
 	if printFieldCnt != formatFieldCnt {
 		panic(fmt.Sprintf("Binary format has %d fields, print fmt has %d fields. Not match.",
 			formatFieldCnt, printFieldCnt))
 	}
+
 	opt.printFmt += "\n"
 
+	binFilePath := flag.Arg(0)
+	binReader, f := openFile(binFilePath)
+	defer f.Close()
+
+	data := make([]interface{}, formatFieldCnt, formatFieldCnt)
 	n := 0
 	var err error
 	for n, err = readData(binReader, formatField, data); err == nil; n, err = readData(binReader, formatField, data) {
@@ -322,7 +360,7 @@ func main() {
 	}
 	// Not enough data for the final line, print out what have been read
 	if n != 0 {
-		printData(opt.printFmt, data[0:n])
+		printData(opt.printFmt, data[:n])
 	} else if opt.printOffset {
 		fmt.Printf(offsetFmt+"\n", offSet)
 	}
