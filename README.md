@@ -15,7 +15,7 @@ Limitations:
 In `bprint`, the binary data specification and how the they are going to be
 printed is specified separately using the `-e` and `-p` option.
 
-- `-e` specifies binary field. Using the same syntax as Ruby's `Array.unpack`.
+- `-e` specifies binary field. Using the same syntax as Ruby's `String#unpack`.
   - `c`, `s`, `l`, `q` stands for signed 8,16,32,64-bit integer
   - `C`, `S`, `L`, `Q` stands for unsigned 8,16,32,64-bit integer
   - A number following the type specifier repeats that specifier. For example, `c4` is equivalent to `cccc`
